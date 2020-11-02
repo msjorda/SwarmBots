@@ -1,8 +1,28 @@
+
 #include <WiFi.h>
-#include <ESPServo.h>
-#include <WiFi.h>
-#include <PubSubClient.h>
+#include <WiFiClient.h>
+#include <WebServer.h>
+#include <Update.h>
+#include <HTTPClient.h>
 #include <Wire.h>
+#include <Arduino.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <SPI.h>
+#include <EEPROM.h>
+#include "esp_system.h"
+#include "QueueArray.h"
+#include "time.h"
+#include <esp_wifi.h>
+#include <iostream>
+//OTA
+#include <ESPmDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+#include <pthread.h>
+#include <ESP32Servo.h>
+#include <PubSubClient.h>
+
 
 
 // Replace with your network credentials
@@ -15,6 +35,8 @@ PubSubClient client(espClient);
 long lastMsg = 0;
 char msg[50];
 int value = 0;
+String prevmsg = "";
+String goal_dir = "";
 
 // Set web server port number to 80
 WiFiServer server(80);
@@ -45,14 +67,33 @@ void callback(char* topic, byte* message, unsigned int length);
 void reconnect();
 
 void setup() {
+	ESP32PWM::allocateTimer(0);
+	ESP32PWM::allocateTimer(1);
+	ESP32PWM::allocateTimer(2);
+	ESP32PWM::allocateTimer(3);
+	servo1.setPeriodHertz(50);
+	servo2.setPeriodHertz(50);
   Serial.begin(115200);
+	Serial.println("Serial functional");
   // Initialize the output variables as outputs
 
   // Connect to Wi-Fi network with SSID and password
   wirelessSetup(ssid, password, mqtt_server);
+	attachMotors();
 }
 
 void loop(){
+	if (!client.connected()) {
+	    reconnect();
+	  }
+	  client.loop();
+		if (goal_dir == "left"){
+			left();
+		}else if(goal_dir == "right"){
+			right();
+		}else{
+			detachMotors();
+		}
 
 }
 
@@ -98,19 +139,28 @@ void callback(char* topic, byte* message, unsigned int length){
 
   // If a message is received on the topic esp32/output, you check if the message is either "on" or "off".
   // Changes the output state according to the message
-  if (String(topic) == "bot1") {
+  if (String(topic) == "[0]") {
     Serial.print("Changing output to ");
+		goal_dir = messageTemp;
     if(messageTemp == "left"){
       Serial.println("left");
-      attachMotors();
-			left();
-			detachMotors();
+			//client.unsubscribe("[0]");
+      //attachMotors();
+			//delay(10);
+			//left();
+			//detachMotors();
+			//client.subscribe("[0]", 0);
+			//delay(200);
     }
     else if(messageTemp == "right"){
       Serial.println("right");
-      attachMotors();
-			right();
-			detachMotors();
+			//client.unsubscribe("[0]");
+      //attachMotors();
+			//delay(10);
+			//right();
+			//detachMotors();
+			//client.subscribe("[0]", 0);
+			//delay(200);
     }
   }
 	// can add more of the above block for different bots
@@ -126,45 +176,57 @@ void reconnect(){
     if (client.connect("ESP32Client")) {
       Serial.println("connected");
       // Subscribe
-      client.subscribe("bot1");
+      client.subscribe("[0]", 0);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
       Serial.println(" try again in 5 seconds");
       // Wait 5 seconds before retrying
-      delay(5000);
+      //delay(5000);
     }
   }
 }
 
+
 void attachMotors(){
-servo1.attach(12);
-servo2.attach(14);
+	Serial.println("attaching!");
+if (servo1.attach(12) == 0){
+	attachMotors();
+}
+if (servo2.attach(14) == 0){
+	attachMotors();
+}
+//delay(50);
 
 }
 
 void detachMotors(){
+	Serial.println("detaching!");
 servo1.detach();
 servo2.detach();
 }
 
 void forward(){
-      servo1.write(180);
-      servo2.write(0);
+      servo1.write(120);
+      servo2.write(60);
       delay(1000);
 }
 void backward(){
-      servo1.write(0);
-      servo2.write(180);
+      servo1.write(60);
+      servo2.write(120);
       delay(1000);
 }
 void left(){
-      servo1.write(0);
-      servo2.write(0);
+			attachMotors();
+			Serial.println("turning left!");
+      servo1.write(60);
+      servo2.write(60);
       delay(100);
 }
 void right(){
-      servo1.write(180);
-      servo2.write(180);
+	attachMotors();
+	Serial.println("turning right!");
+      servo1.write(120);
+      servo2.write(120);
       delay(100);
 }

@@ -37,6 +37,7 @@ char msg[50];
 int value = 0;
 String prevmsg = "";
 String goal_dir = "";
+int steering_ang;
 
 // Set web server port number to 80
 WiFiServer server(80);
@@ -65,6 +66,8 @@ void right();
 void wirelessSetup(const char* ssid, const char* password, const char* mqtt_server);
 void callback(char* topic, byte* message, unsigned int length);
 void reconnect();
+void calibrate();
+void drive(int steering_ang);
 
 void setup() {
 	ESP32PWM::allocateTimer(0);
@@ -83,17 +86,20 @@ void setup() {
 }
 
 void loop(){
+//calibrate();
+
 	if (!client.connected()) {
 	    reconnect();
 	  }
 	  client.loop();
-		if (goal_dir == "left"){
-			left();
-		}else if(goal_dir == "right"){
-			right();
-		}else{
-			detachMotors();
-		}
+
+		Serial.println(steering_ang);
+		drive(steering_ang);
+
+
+
+
+
 
 }
 
@@ -139,9 +145,12 @@ void callback(char* topic, byte* message, unsigned int length){
 
   // If a message is received on the topic esp32/output, you check if the message is either "on" or "off".
   // Changes the output state according to the message
-  if (String(topic) == "[0]") {
+  if (String(topic) == "[1]") {
     Serial.print("Changing output to ");
 		goal_dir = messageTemp;
+
+		steering_ang = goal_dir.toInt();
+
     if(messageTemp == "left"){
       Serial.println("left");
 			//client.unsubscribe("[0]");
@@ -173,10 +182,10 @@ void reconnect(){
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    if (client.connect("ESP32Client")) {
+    if (client.connect("ESP32Client1")) {
       Serial.println("connected");
       // Subscribe
-      client.subscribe("[0]", 0);
+      client.subscribe("[1]", 0);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -229,4 +238,34 @@ void right(){
       servo1.write(120);
       servo2.write(120);
       delay(100);
+}
+
+void drive(int steering_ang){
+	attachMotors();
+	if (steering_ang <= 90){
+		//left
+		//servo2 lock forward
+		servo2.write(0);
+		//at 90, forward
+		//90 ==> 180
+		servo1.write(steering_ang*2);
+	}else if (steering_ang > 90 && steering_ang <= 180){
+		//right
+		//servo1 lock forward
+		servo1.write(180);
+		//at 180, forward
+		//(180, 90) ==> (90, 180)
+		//-(steering_ang)+270
+		servo2.write(360-(steering_ang*2));
+	}else if (steering_ang == 200){
+		detachMotors();
+	}
+	delay(100);
+}
+
+void calibrate(){
+	attachMotors();
+	servo1.write(90);	// forward 90->180
+	servo2.write(90); // forward 0<-90
+	delay(5000);
 }
